@@ -3,13 +3,13 @@
  * 使用 @google/genai SDK 调用 Vertex AI 端点
  * 
  * 环境变量配置（在 Vercel Dashboard 中设置）：
- * - VERTEX_AI_API_KEY: 你的 Vertex AI API Key
+ * - VERTEX_AI_API_KEY: 你的 Google Cloud API Key (绑定到服务账号或启用 Vertex AI API)
  * - GEMINI_MODEL: gemini-3-flash-preview（或其他模型）
  */
 
 import { GoogleGenAI } from "@google/genai";
 
-// ✅ 启用 Vertex AI 端点
+// ✅ 必须设置此环境变量以启用 Vertex AI 模式
 process.env.GOOGLE_GENAI_USE_VERTEXAI = "true";
 
 // GenAI 客户端缓存
@@ -23,11 +23,11 @@ function getGenAIClient() {
       throw new Error("VERTEX_AI_API_KEY environment variable is required");
     }
     
-    // ✅ 使用 API Key 调用 Vertex AI 端点
+    // ✅ 在最新版本的 @google/genai 中，启用 Vertex AI 模式后
+    // 依然可以通过 { apiKey } 对象进行初始化
     genAIClient = new GoogleGenAI({ apiKey });
     
     console.log('✅ [Vertex AI] 客户端初始化成功');
-    console.log('   API Key:', apiKey.substring(0, 10) + '...');
     console.log('   使用 Vertex AI: 是');
   }
   return genAIClient;
