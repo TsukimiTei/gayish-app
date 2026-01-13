@@ -1,10 +1,65 @@
 /**
  * Vercel Serverless Function - Gemini API 分析接口
+ * 使用 @google/genai SDK (Vertex AI 模式)
  * 
  * 环境变量配置（在 Vercel Dashboard 中设置）：
- * - GEMINI_API_KEY: 你的 Gemini API Key
- * - GEMINI_MODEL: gemini-3-flash（或其他模型）
+ * - GEMINI_API_KEY: 你的 Vertex AI API Key (AQ. 开头)
+ * - GEMINI_MODEL: gemini-1.5-flash（或其他模型）
  */
+
+import { GoogleGenAI } from "@google/genai";
+
+// ✅ 启用 Vertex AI 模式
+if (!process.env.GOOGLE_GENAI_USE_VERTEXAI) {
+  process.env.GOOGLE_GENAI_USE_VERTEXAI = "true";
+}
+
+// GenAI 客户端缓存
+let genAIClient = null;
+
+// 获取 GenAI 客户端（单例）
+function getVertexAIClient() {
+  if (!genAIClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY environment variable is required");
+    }
+    
+    genAIClient = new GoogleGenAI({
+      apiKey,
+      // Vertex AI 模式通过环境变量 GOOGLE_GENAI_USE_VERTEXAI=true 自动启用
+    });
+    
+    console.log('✅ [GenAI] 客户端初始化成功 (Vertex AI 模式)');
+    console.log('   API Key:', apiKey.substring(0, 10) + '...');
+  }
+  return genAIClient;
+}
+
+// 默认 prompt
+function getDefaultPrompt() {
+  return `这对话有多 gayyyyyyyyish. it's a joke
+
+请分析这张聊天截图，给我一个 1 到 10 分的打分，并详细分析每个得分点。
+
+请严格按照以下格式返回：
+
+1. 基础得分 (+X分): "引用对话内容"
+   分析说明
+
+2. 进阶得分 (+X分): "引用对话内容"
+   分析说明
+
+3. 灵魂得分 (+X分): "引用对话内容"
+   分析说明（这是最Gay的部分）
+
+4. 附加分 (+X分): "引用对话内容"
+   分析说明
+
+总结：最终评语
+
+请用中文回答，要幽默风趣，充满娱乐性。`;
+}
 
 export default async function handler(req, res) {
   // CORS 配置
@@ -36,124 +91,103 @@ export default async function handler(req, res) {
     }
 
     // 从环境变量读取配置
-    const apiKey = process.env.GEMINI_API_KEY;
     const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-    const projectId = process.env.VERTEX_PROJECT_ID || 'your-project-id';
-    const location = process.env.VERTEX_LOCATION || 'us-central1';
 
-    if (!apiKey) {
-      console.error('❌ 未配置 GEMINI_API_KEY 环境变量');
-      return res.status(500).json({ error: 'API 配置错误' });
-    }
-
-    console.log('🚀 调用 Vertex AI Gemini API (GenAI SDK 模式)...');
+    console.log('🚀 [Vertex AI] 开始调用 Gemini API...');
     console.log('   模型:', model);
-    console.log('   Project ID:', projectId);
-    console.log('   Location:', location);
-    console.log('   API Key (Vertex AI):', apiKey.substring(0, 10) + '...');
-    console.log('   API Version: v1');
-    console.log('   GOOGLE_GENAI_USE_VERTEXAI: True');
+    console.log('   GOOGLE_GENAI_USE_VERTEXAI:', process.env.GOOGLE_GENAI_USE_VERTEXAI);
 
-    // ✅ 按照用户的 Python 代码要求：
-    // os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
-    // client = genai.Client(api_key=api_key, http_options=HttpOptions(api_version="v1"))
+    // 获取客户端
+    const client = getVertexAIClient();
+
+    // 构建请求内容
+    const parts = [
+      // 先添加图片
+      {
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: image.replace(/^data:image\/\w+;base64,/, '') // 去除 base64 前缀（如果有）
+        }
+      },
+      // 再添加文本提示
+      {
+        text: prompt || getDefaultPrompt()
+      }
+    ];
+
+    console.log('📤 [Vertex AI] 发送请求到 Gemini...');
     
-    // Vertex AI 端点（当 GOOGLE_GENAI_USE_VERTEXAI=True 时使用）
-    const vertexEndpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
-    
-    const requestBody = {
+    // ✅ 使用 SDK 调用 Vertex AI
+    const response = await client.models.generateContent({
+      model: model,
       contents: [
         {
-          parts: [
-            { text: prompt || getDefaultPrompt() },
-            {
-              inline_data: {
-                mime_type: 'image/jpeg',
-                data: image.replace(/^data:image\/\w+;base64,/, '') // 去除 base64 前缀（如果有）
-              }
-            }
-          ]
+          role: 'user',
+          parts: parts
         }
       ],
-      generationConfig: {
+      config: {
         temperature: 0.7,
         topK: 32,
         topP: 0.95,
-        maxOutputTokens: 2048
+        maxOutputTokens: 2048,
+        safetySettings: [
+          {
+            category: 'HARM_CATEGORY_HARASSMENT',
+            threshold: 'BLOCK_NONE'
+          },
+          {
+            category: 'HARM_CATEGORY_HATE_SPEECH',
+            threshold: 'BLOCK_NONE'
+          },
+          {
+            category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+            threshold: 'BLOCK_NONE'
+          },
+          {
+            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+            threshold: 'BLOCK_NONE'
+          }
+        ]
       }
-    };
-
-    // ✅ 使用 Bearer Token（Vertex AI 认证方式）
-    const response = await fetch(vertexEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`  // Vertex AI 使用 Bearer token
-      },
-      body: JSON.stringify(requestBody)
     });
 
-    const responseData = await response.json();
+    console.log('📡 [Vertex AI] 收到响应');
 
-    console.log('📡 Gemini API 响应状态:', response.status);
-
-    if (!response.ok) {
-      console.error('❌ Gemini API 错误:', responseData);
-      return res.status(response.status).json({
-        error: 'Gemini API 调用失败',
-        details: responseData
-      });
+    // 检查安全过滤
+    const candidate = response.candidates?.[0];
+    if (candidate?.finishReason === 'SAFETY') {
+      console.error('❌ [Vertex AI] 内容被安全过滤阻止');
+      return res.status(400).json({ error: '内容被安全过滤阻止，请尝试调整图片' });
     }
 
-    // 提取响应文本
-    const text = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-      console.error('❌ 响应中没有文本内容');
+    // 提取文本
+    const responseText = candidate?.content?.parts?.[0]?.text;
+
+    if (!responseText) {
+      console.error('❌ [Vertex AI] 响应中没有文本内容');
       return res.status(500).json({ error: '无法解析 API 响应' });
     }
 
-    console.log('✅ 分析完成');
+    console.log('✅ [Vertex AI] 分析完成');
+    console.log('   返回文本长度:', responseText.length);
     
     // 返回成功响应
     return res.status(200).json({
       success: true,
-      text: text,
+      text: responseText,
       model: model
     });
 
   } catch (error) {
-    console.error('❌ 服务器错误:', error);
+    console.error('❌ [Vertex AI] 错误:', error);
+    console.error('   错误详情:', error.message);
+    console.error('   错误堆栈:', error.stack);
+    
     return res.status(500).json({
       error: '服务器内部错误',
-      message: error.message
+      message: error.message,
+      details: error.toString()
     });
   }
-}
-
-/**
- * 默认 prompt
- */
-function getDefaultPrompt() {
-  return `这对话有多 gayyyyyyyyish. it's a joke
-
-请分析这张聊天截图，给我一个 1 到 10 分的打分，并详细分析每个得分点。
-
-请严格按照以下格式返回：
-
-1. 基础得分 (+X分): "引用对话内容"
-   分析说明
-
-2. 进阶得分 (+X分): "引用对话内容"
-   分析说明
-
-3. 灵魂得分 (+X分): "引用对话内容"
-   分析说明（这是最Gay的部分）
-
-4. 附加分 (+X分): "引用对话内容"
-   分析说明
-
-总结：最终评语
-
-请用中文回答，要幽默风趣，充满娱乐性。`;
 }

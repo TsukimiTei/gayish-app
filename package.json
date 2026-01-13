@@ -16,7 +16,9 @@
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "@google/genai": "^0.3.0"
+  },
   "devDependencies": {
     "vercel": "^37.0.0"
   }
