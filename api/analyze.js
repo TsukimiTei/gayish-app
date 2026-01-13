@@ -1,38 +1,34 @@
 /**
- * Vercel Serverless Function - Gemini API 分析接口
- * 使用 @google/genai SDK
+ * Vercel Serverless Function - Vertex AI 分析接口
+ * 使用 @google/genai SDK 调用 Vertex AI 端点
  * 
  * 环境变量配置（在 Vercel Dashboard 中设置）：
- * - GEMINI_API_KEY: 你的 API Key
- * - GEMINI_MODEL: gemini-1.5-flash（或其他模型）
+ * - VERTEX_AI_API_KEY: 你的 Vertex AI API Key
+ * - GEMINI_MODEL: gemini-3-flash-preview（或其他模型）
  */
 
 import { GoogleGenAI } from "@google/genai";
 
-// ❌ 不使用 Vertex AI 模式，不使用 ADC
-// ✅ 直接使用 API Key
-delete process.env.GOOGLE_GENAI_USE_VERTEXAI;
-delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
-delete process.env.GCLOUD_PROJECT;
-delete process.env.GOOGLE_CLOUD_PROJECT;
+// ✅ 启用 Vertex AI 端点
+process.env.GOOGLE_GENAI_USE_VERTEXAI = "true";
 
 // GenAI 客户端缓存
 let genAIClient = null;
 
-// 获取 GenAI 客户端（单例）
+// 获取 Vertex AI 客户端（单例）
 function getGenAIClient() {
   if (!genAIClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.VERTEX_AI_API_KEY;
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY environment variable is required");
+      throw new Error("VERTEX_AI_API_KEY environment variable is required");
     }
     
-    // ✅ 只传 apiKey，不使用任何其他认证
+    // ✅ 使用 API Key 调用 Vertex AI 端点
     genAIClient = new GoogleGenAI({ apiKey });
     
-    console.log('✅ [GenAI] 客户端初始化成功');
+    console.log('✅ [Vertex AI] 客户端初始化成功');
     console.log('   API Key:', apiKey.substring(0, 10) + '...');
-    console.log('   使用 ADC: 否');
+    console.log('   使用 Vertex AI: 是');
   }
   return genAIClient;
 }
@@ -88,9 +84,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: '缺少图片数据' });
     }
 
-    const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const model = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
 
-    console.log('🚀 [GenAI] 开始调用...');
+    console.log('🚀 [Vertex AI] 开始调用...');
     console.log('   模型:', model);
 
     const client = getGenAIClient();
@@ -107,7 +103,7 @@ export default async function handler(req, res) {
       }
     ];
 
-    console.log('📤 [GenAI] 发送请求...');
+    console.log('📤 [Vertex AI] 发送请求...');
     
     const response = await client.models.generateContent({
       model: model,
@@ -120,7 +116,7 @@ export default async function handler(req, res) {
       }
     });
 
-    console.log('📡 [GenAI] 收到响应');
+    console.log('📡 [Vertex AI] 收到响应');
 
     const candidate = response.candidates?.[0];
     if (candidate?.finishReason === 'SAFETY') {
@@ -133,7 +129,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: '无法解析 API 响应' });
     }
 
-    console.log('✅ [GenAI] 分析完成');
+    console.log('✅ [Vertex AI] 分析完成');
     
     return res.status(200).json({
       success: true,
@@ -142,7 +138,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ [GenAI] 错误:', error.message);
+    console.error('❌ [Vertex AI] 错误:', error.message);
     return res.status(500).json({
       error: '服务器错误',
       message: error.message
