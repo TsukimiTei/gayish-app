@@ -44,3 +44,10 @@ Pods/
 *.xcworkspace/*
 !*.xcworkspace/contents.xcworkspacedata
 !*.xcworkspace/xcshareddata/
+
+# Node.js / Vercel
+node_modules/
+.vercel
+.env
+.env.local
+.env.production

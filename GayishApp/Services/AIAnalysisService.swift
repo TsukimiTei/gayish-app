@@ -13,22 +13,20 @@ class AIAnalysisService {
     
     // MARK: - API配置
     
-    // ✅ Vertex AI 配置（按照用户 Python 代码要求）
-    // 环境变量: GOOGLE_GENAI_USE_VERTEXAI = "True"
-    // API Version: v1
-    private let geminiAPIKey = "AQ.Ab8RN6JJlq7fPmqoeYA3NYD1mZrZ9amifF-8NKh8u4WcIs-FmA"
-    private let geminiModel = "gemini-3-flash" // ✅ Gemini 3 Flash - 用户指定
+    // ✅ 使用 Vercel 中间层调用 Gemini API
+    // 优势：
+    // - API Key 不暴露在客户端
+    // - 避免复杂的认证问题
+    // - 便于后端逻辑更新
+    
+    // ⚠️ 部署后替换为你的 Vercel 域名
+    private let vercelEndpoint = "https://your-app.vercel.app/api/analyze"
     
     // 模拟数据模式（调试用）
-    private let useMockData = false  // ✅ 已启用真实 Vertex AI API
+    private let useMockData = false  // ✅ 已启用真实 API 调用
     
     // 网络超时设置
-    private let requestTimeout: TimeInterval = 30.0  // 30秒超时
-    
-    // ✅ Google AI v1 端点（GOOGLE_GENAI_USE_VERTEXAI 模式）
-    private var geminiEndpoint: String {
-        "https://generativelanguage.googleapis.com/v1/models/\(geminiModel):generateContent"
-    }
+    private let requestTimeout: TimeInterval = 60.0  // 60秒超时（Vercel Pro 最长 60 秒）
     
     // MARK: - 分析图片
     
@@ -50,9 +48,9 @@ class AIAnalysisService {
         return analysisResult
     }
     
-    // MARK: - Gemini API 分析
+    // MARK: - Vercel API 分析
     
-    /// 调用 Gemini API 进行图片分析
+    /// 通过 Vercel 中间层调用 Gemini API 进行图片分析
     private func analyzeWithGemini(image: UIImage) async throws -> ChatAnalysisResult {
         // 1. 准备图片数据（转换为 JPEG base64）
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
@@ -60,17 +58,15 @@ class AIAnalysisService {
         }
         let base64Image = imageData.base64EncodedString()
         
-        // 2. 构建请求 URL（Vertex AI 端点）
-        guard let url = URL(string: geminiEndpoint) else {
-            throw NSError(domain: "URLError", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的URL"])
+        // 2. 构建请求 URL（Vercel API 端点）
+        guard let url = URL(string: vercelEndpoint) else {
+            throw NSError(domain: "URLError", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的 Vercel URL"])
         }
         
-        // 3. 构建请求体（Google AI v1 认证）
+        // 3. 构建请求体
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        // ✅ 使用 x-goog-api-key header（Google AI v1 API 格式）
-        request.setValue(geminiAPIKey, forHTTPHeaderField: "x-goog-api-key")
         request.timeoutInterval = requestTimeout  // 设置超时
         
         // 构建 prompt
@@ -98,37 +94,18 @@ class AIAnalysisService {
         请用中文回答，要幽默风趣，充满娱乐性。
         """
         
-        // Gemini API 请求格式
+        // Vercel API 请求格式（简化版）
         let requestBody: [String: Any] = [
-            "contents": [
-                [
-                    "parts": [
-                        ["text": prompt],
-                        [
-                            "inline_data": [
-                                "mime_type": "image/jpeg",
-                                "data": base64Image
-                            ]
-                        ]
-                    ]
-                ]
-            ],
-            "generationConfig": [
-                "temperature": 0.7,
-                "topK": 32,
-                "topP": 0.95,
-                "maxOutputTokens": 2048
-            ]
+            "image": base64Image,
+            "prompt": prompt
         ]
         
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         
         // 4. 发送请求（带超时控制）
-        print("🚀 [AIAnalysisService] 调用 Google AI v1 API (Vertex AI 模式)...")
-        print("   端点: \(geminiEndpoint)")
-        print("   模型: \(geminiModel)")
-        print("   认证方式: x-goog-api-key header")
-        print("   API Key: \(geminiAPIKey.prefix(10))...")
+        print("🚀 [AIAnalysisService] 调用 Vercel API...")
+        print("   端点: \(vercelEndpoint)")
+        print("   图片大小: \(imageData.count / 1024) KB")
         print("   超时: \(requestTimeout)秒")
         
         let (data, response) = try await withTimeout(seconds: requestTimeout) {
@@ -140,20 +117,22 @@ class AIAnalysisService {
             throw NSError(domain: "APIError", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的响应"])
         }
         
-        print("📡 [AIAnalysisService] Gemini API 响应状态: \(httpResponse.statusCode)")
+        print("📡 [AIAnalysisService] Vercel API 响应状态: \(httpResponse.statusCode)")
         
         if httpResponse.statusCode != 200 {
             // 打印错误信息
             if let errorString = String(data: data, encoding: .utf8) {
-                print("❌ [AIAnalysisService] Gemini API 错误响应:")
+                print("❌ [AIAnalysisService] Vercel API 错误响应:")
                 print(errorString)
             }
             
             var errorMessage = "API请求失败"
             if httpResponse.statusCode == 401 {
-                errorMessage = "API密钥无效"
+                errorMessage = "API密钥无效，请检查 Vercel 环境变量"
             } else if httpResponse.statusCode == 404 {
-                errorMessage = "模型不存在: \(geminiModel)"
+                errorMessage = "Vercel 端点不存在"
+            } else if httpResponse.statusCode == 500 {
+                errorMessage = "服务器内部错误"
             } else if httpResponse.statusCode == 429 {
                 errorMessage = "请求过于频繁"
             }
@@ -165,8 +144,8 @@ class AIAnalysisService {
             )
         }
         
-        // 6. 解析响应
-        let result = try parseGeminiResponse(data)
+        // 6. 解析 Vercel API 响应
+        let result = try parseVercelResponse(data)
         print("✅ [AIAnalysisService] 分析完成，总分: \(result.totalScore)")
         return result
     }
@@ -193,7 +172,39 @@ class AIAnalysisService {
         }
     }
     
-    /// 解析 Gemini 响应
+    /// 解析 Vercel API 响应
+    private func parseVercelResponse(_ data: Data) throws -> ChatAnalysisResult {
+        struct VercelResponse: Codable {
+            let success: Bool
+            let text: String
+            let model: String?
+            let error: String?
+        }
+        
+        let decoder = JSONDecoder()
+        let response = try decoder.decode(VercelResponse.self, from: data)
+        
+        guard response.success, let content = response.text as String? else {
+            print("⚠️ [AIAnalysisService] Vercel API 返回错误")
+            print("   错误: \(response.error ?? "未知错误")")
+            throw NSError(
+                domain: "ParseError",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: response.error ?? "AI返回的数据格式不正确"]
+            )
+        }
+        
+        print("📝 [AIAnalysisService] Gemini 返回内容（通过 Vercel）:")
+        print(content)
+        if let model = response.model {
+            print("   使用模型: \(model)")
+        }
+        
+        // 解析分析内容
+        return try parseAnalysisContent(content)
+    }
+    
+    /// 解析 Gemini 响应（保留以备后用）
     private func parseGeminiResponse(_ data: Data) throws -> ChatAnalysisResult {
         struct GeminiResponse: Codable {
             struct Candidate: Codable {

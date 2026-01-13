@@ -1,0 +1,23 @@
+{
+  "name": "gayish-api",
+  "version": "1.0.0",
+  "description": "Vercel API endpoints for Gayish app",
+  "main": "api/analyze.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "vercel",
+    "serverless",
+    "gemini",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  }
+}
