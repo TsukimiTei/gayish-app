@@ -44,12 +44,18 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'API 配置错误' });
     }
 
-    console.log('🚀 调用 Gemini API...');
+    console.log('🚀 调用 Vertex AI Gemini API (GenAI SDK 模式)...');
     console.log('   模型:', model);
-    console.log('   API Key:', apiKey.substring(0, 10) + '...');
+    console.log('   API Key (Vertex AI):', apiKey.substring(0, 10) + '...');
+    console.log('   API Version: v1');
+    console.log('   GOOGLE_GENAI_USE_VERTEXAI: True');
 
-    // 构建 Gemini API 请求
-    const geminiEndpoint = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`;
+    // ✅ 按照用户的 Python 代码要求：
+    // os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
+    // client = genai.Client(api_key=api_key, http_options=HttpOptions(api_version="v1"))
+    
+    // Vertex AI GenAI SDK 端点（v1 API）
+    const vertexEndpoint = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`;
     
     const requestBody = {
       contents: [
@@ -73,11 +79,12 @@ export default async function handler(req, res) {
       }
     };
 
-    // 调用 Gemini API
-    const response = await fetch(`${geminiEndpoint}?key=${apiKey}`, {
+    // ✅ 使用 x-goog-api-key header（Vertex AI 认证方式）
+    const response = await fetch(vertexEndpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey  // Vertex AI 使用这个 header
       },
       body: JSON.stringify(requestBody)
     });
