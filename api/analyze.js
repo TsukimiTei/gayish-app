@@ -38,6 +38,8 @@ export default async function handler(req, res) {
     // 从环境变量读取配置
     const apiKey = process.env.GEMINI_API_KEY;
     const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const projectId = process.env.VERTEX_PROJECT_ID || 'your-project-id';
+    const location = process.env.VERTEX_LOCATION || 'us-central1';
 
     if (!apiKey) {
       console.error('❌ 未配置 GEMINI_API_KEY 环境变量');
@@ -46,6 +48,8 @@ export default async function handler(req, res) {
 
     console.log('🚀 调用 Vertex AI Gemini API (GenAI SDK 模式)...');
     console.log('   模型:', model);
+    console.log('   Project ID:', projectId);
+    console.log('   Location:', location);
     console.log('   API Key (Vertex AI):', apiKey.substring(0, 10) + '...');
     console.log('   API Version: v1');
     console.log('   GOOGLE_GENAI_USE_VERTEXAI: True');
@@ -54,8 +58,8 @@ export default async function handler(req, res) {
     // os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
     // client = genai.Client(api_key=api_key, http_options=HttpOptions(api_version="v1"))
     
-    // Vertex AI GenAI SDK 端点（v1 API）
-    const vertexEndpoint = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`;
+    // Vertex AI 端点（当 GOOGLE_GENAI_USE_VERTEXAI=True 时使用）
+    const vertexEndpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
     
     const requestBody = {
       contents: [
@@ -79,12 +83,12 @@ export default async function handler(req, res) {
       }
     };
 
-    // ✅ 使用 x-goog-api-key header（Vertex AI 认证方式）
+    // ✅ 使用 Bearer Token（Vertex AI 认证方式）
     const response = await fetch(vertexEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey  // Vertex AI 使用这个 header
+        'Authorization': `Bearer ${apiKey}`  // Vertex AI 使用 Bearer token
       },
       body: JSON.stringify(requestBody)
     });
