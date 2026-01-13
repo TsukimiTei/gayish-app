@@ -19,8 +19,8 @@ class AIAnalysisService {
     // - 避免复杂的认证问题
     // - 便于后端逻辑更新
     
-    // ⚠️ 部署后替换为你的 Vercel 域名
-    private let vercelEndpoint = "https://your-app.vercel.app/api/analyze"
+    // ✅ 你的 Vercel 部署 URL
+    private let vercelEndpoint = "https://gayish-cwymh0nkr-tsukimiteis-projects.vercel.app/api/analyze"
     
     // 模拟数据模式（调试用）
     private let useMockData = false  // ✅ 已启用真实 API 调用
