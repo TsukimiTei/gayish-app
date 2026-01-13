@@ -1,0 +1,13 @@
+{
+  "sweetpad.projectPath": "${workspaceFolder}/Gayish.xcodeproj",
+  "sweetpad.selectedDevice": "iPhone 17 Pro",
+  "sweetpad.selectedScheme": "Gayish",
+  "sweetpad.buildConfiguration": "Debug",
+  "sweetpad.autoShowSimulator": true,
+  "files.exclude": {
+    "**/.DS_Store": true,
+    "**/DerivedData": true,
+    "**/.build": true,
+    "**/.swiftpm": true
+  }
+}
